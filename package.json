@@ -1,0 +1,29 @@
+{
+  "name": "cineora-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "npm@10.9.3",
+  "description": "CINEORA — AI-Powered Video Production Platform Monorepo",
+  "workspaces": [
+    "packages/*",
+    "apps/api",
+    "apps/web",
+    "services/media-worker"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "db:generate": "npm --workspace @cineora/api run prisma:generate",
+    "db:migrate": "npm --workspace @cineora/api run prisma:migrate"
+  },
+  "devDependencies": {
+    "turbo": "^2.4.4",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

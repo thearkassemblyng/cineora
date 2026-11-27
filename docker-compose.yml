@@ -1,0 +1,111 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cineora-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cineora
+      POSTGRES_PASSWORD: cineora_dev_password
+      POSTGRES_DB: cineora
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cineora -d cineora"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: cineora-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: cineora-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: cineora_minio_user
+      MINIO_ROOT_PASSWORD: cineora_minio_password
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  ai-orchestrator:
+    build:
+      context: ./services/ai-orchestrator
+      dockerfile: Dockerfile
+    container_name: cineora-ai-orchestrator
+    restart: unless-stopped
+    env_file:
+      - .env.example
+    ports:
+      - "8000:8000"
+
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    container_name: cineora-api
+    restart: unless-stopped
+    env_file:
+      - .env.example
+    environment:
+      DATABASE_URL: postgresql://cineora:cineora_dev_password@postgres:5432/cineora?schema=public
+      REDIS_HOST: redis
+      S3_ENDPOINT: http://minio:9000
+      AI_ORCHESTRATOR_URL: http://ai-orchestrator:8000
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  media-worker:
+    build:
+      context: .
+      dockerfile: infra/docker/media-worker.Dockerfile
+    container_name: cineora-media-worker
+    restart: unless-stopped
+    env_file:
+      - .env.example
+    environment:
+      REDIS_HOST: redis
+      S3_ENDPOINT: http://minio:9000
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/web.Dockerfile
+    container_name: cineora-web
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
